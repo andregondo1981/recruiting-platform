@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write  # Crucial: Required to request the OIDC JWT token from GitHub
+  id-token: write  # Required for OIDC JWT token request
   contents: read
 
 jobs:
@@ -22,12 +22,12 @@ jobs:
       # STEP 1: Infrastructure-as-Code (IaC) Scan
       # ==========================================
       - name: Run Trivy vulnerability scanner in IaC mode
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
           hide-progress: false
           format: 'table'
-          exit-code: '1' # Fails the pipeline if insecure Terraform configs are detected
+          exit-code: '1'
           ignore-unfixed: true
 
       # ==========================================
@@ -59,11 +59,11 @@ jobs:
       # STEP 4: Container Vulnerability Scan
       # ==========================================
       - name: Run Trivy vulnerability scanner on Docker Image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ steps.login-ecr.outputs.registry }}/utc-recruiting-app:latest'
           format: 'table'
-          exit-code: '0' # Non-blocking audit for container vulns (change to '1' to enforce strict blocking)
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
