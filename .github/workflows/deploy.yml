@@ -52,7 +52,6 @@ jobs:
           REPOSITORY: utc-recruiting-app
           IMAGE_TAG: latest
         run: |
-          cd app
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
 
       # ==========================================
