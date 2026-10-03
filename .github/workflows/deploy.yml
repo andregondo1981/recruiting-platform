@@ -1,4 +1,4 @@
-name: Build and Deploy to ECS Fargate
+name: Build, Scan, and Deploy to ECS Fargate
 
 on:
   push:
@@ -6,30 +6,47 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write  # Required to request the OIDC JWT token from GitHub
+  id-token: write  # Crucial: Required to request the OIDC JWT token from GitHub
   contents: read
 
 jobs:
-  deploy:
-    name: Build, Push, and Deploy
+  security-and-deploy:
+    name: Pipeline & Security Scans
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Secure OIDC Login (No static access keys required!)
+      # ==========================================
+      # STEP 1: Infrastructure-as-Code (IaC) Scan
+      # ==========================================
+      - name: Run Trivy vulnerability scanner in IaC mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          hide-progress: false
+          format: 'table'
+          exit-code: '1' # Fails the pipeline if insecure Terraform configs are detected
+          ignore-unfixed: true
+
+      # ==========================================
+      # STEP 2: Secure AWS Authentication via OIDC
+      # ==========================================
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/utc-github-actions-oidc-role
+          role-to-assume: arn:aws:iam::377100337993:role/utc-github-actions-oidc-role
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      # ==========================================
+      # STEP 3: Build Docker Container Locally
+      # ==========================================
+      - name: Build Docker Image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: utc-recruiting-app
@@ -37,6 +54,28 @@ jobs:
         run: |
           cd app
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+
+      # ==========================================
+      # STEP 4: Container Vulnerability Scan
+      # ==========================================
+      - name: Run Trivy vulnerability scanner on Docker Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ steps.login-ecr.outputs.registry }}/utc-recruiting-app:latest'
+          format: 'table'
+          exit-code: '0' # Non-blocking audit for container vulns (change to '1' to enforce strict blocking)
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      # ==========================================
+      # STEP 5: Push to ECR & Deploy to ECS Fargate
+      # ==========================================
+      - name: Push Image to Amazon ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: utc-recruiting-app
+          IMAGE_TAG: latest
+        run: |
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
       - name: Update ECS Service

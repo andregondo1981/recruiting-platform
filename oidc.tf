@@ -1,11 +1,11 @@
-# 1. Create the GitHub OIDC Identity Provider in AWS (safe to run even if it already exists)
+# 1. GitHub OIDC Provider resource (matches your imported provider)
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
-# 2. Create the IAM Role for GitHub Actions OIDC
+# 2. IAM Role for GitHub Actions OIDC with strict repository binding
 resource "aws_iam_role" "github_actions" {
   name = "utc-github-actions-oidc-role"
 
@@ -23,7 +23,7 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            # Locked strictly to your exact account and repository main branch
+            # Strictly locked to your exact GitHub account and repository main branch
             "token.actions.githubusercontent.com:sub" = "repo:andregondo1981/recruiting-platform:ref:refs/heads/main"
           }
         }
@@ -32,7 +32,7 @@ resource "aws_iam_role" "github_actions" {
   })
 }
 
-# 3. Least-privilege permissions to push images to ECR and rollout ECS updates
+# 3. Least-privilege permissions policy for ECR pushes and ECS deployments
 resource "aws_iam_role_policy" "github_actions_policy" {
   name = "utc-github-actions-permissions"
   role = aws_iam_role.github_actions.id
@@ -74,7 +74,6 @@ resource "aws_iam_role_policy" "github_actions_policy" {
   })
 }
 
-# Output the exact role ARN to reference
 output "github_actions_role_arn" {
   value       = aws_iam_role.github_actions.arn
   description = "IAM Role ARN for GitHub Actions OIDC authentication"
