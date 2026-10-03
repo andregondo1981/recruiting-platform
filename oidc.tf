@@ -1,4 +1,3 @@
-# 1. Define the OIDC Provider resource for GitHub Actions
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
@@ -8,7 +7,6 @@ resource "aws_iam_openid_connect_provider" "github" {
   ]
 }
 
-# 2. IAM Role for GitHub Actions OIDC using required sub constraint
 resource "aws_iam_role" "github_actions" {
   name = "utc-github-actions-oidc-role"
 
@@ -26,52 +24,9 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            # AWS-compliant sub constraint matching any branch/action in your repo
             "token.actions.githubusercontent.com:sub" = "repo:andregondo1981/recruiting-platform:*"
           }
         }
-      }
-    ]
-  })
-}
-
-# 3. Least-privilege permissions policy for ECR pushes and ECS deployments
-resource "aws_iam_role_policy" "github_actions_policy" {
-  name = "utc-github-actions-permissions"
-  role = aws_iam_role.github_actions.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:CompleteLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:InitiateLayerUpload",
-          "ecr:PutImage"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecs:UpdateService",
-          "ecs:DescribeServices"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:PassRole"
-        ]
-        Resource = [
-          aws_iam_role.ecs_execution_role.arn,
-          aws_iam_role.ecs_task_role.arn
-        ]
       }
     ]
   })
